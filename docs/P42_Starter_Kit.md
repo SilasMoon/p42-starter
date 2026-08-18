@@ -1,7 +1,15 @@
 # Project 42 — Starter Kit
 
-**Version 1.0 — 18 August 2026.** For someone joining the project with no background in
-AI, search systems, or measurement. Nothing here assumes you have seen any of it before.
+**Version 1.0 — 18 August 2026. THIS FILE IS CANONICAL.**
+
+> A formatted web version of this document was produced on 18 August 2026 and is **not
+> maintained**. Within an hour it had already lost three corrections that exist here. If a
+> shareable web copy is wanted again, **generate it from this file** — do not hand-write a
+> second one. Two copies of the same document will disagree, and this project has a register
+> (`P42_Register.md`) that exists precisely because four planning documents drifted apart.
+
+For someone joining the project with no background in AI, search systems, or measurement.
+Nothing here assumes you have seen any of it before.
 
 Read this before you run anything. It is long, but it is the only long thing you have to read.
 
