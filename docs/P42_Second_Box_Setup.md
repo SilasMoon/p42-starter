@@ -32,6 +32,55 @@ modes**, and you switch between them:
 
 ---
 
+## Step 0 — the account, and the two groups it must be in
+
+**If spark2 is the intern's machine, use the account that already exists on it.** Everything in
+this guide is written relative to the home directory (`~/p42`), so it works under any username
+with no changes. A second account buys file separation and nothing else, because the things
+that actually matter here are **machine-wide, not per-user**:
+
+- **Docker containers** are not namespaced by user. If two accounts each run
+  `docker run --name qdrant`, the second fails on a name collision.
+- **The GPU and its memory** are one shared pool. Only one mode's models fit at a time, so two
+  people cannot serve and ingest simultaneously.
+- **Ports** 6333 / 8000 / 8002 / 8080 / 8081 are one set per machine.
+
+So a second account does not give a second working environment. If you both need to use the
+box, the sharing has to be by agreement — one person holds it in one mode at a time — and a
+separate login does not change that.
+
+### Whichever account is used, it needs two group memberships
+
+```bash
+sudo usermod -aG docker <username>     # run containers without sudo
+sudo usermod -aG sudo   <username>     # apt, and the mode scripts
+# log out and back in for the groups to take effect
+```
+
+Check they took:
+
+```bash
+id                 # expect 'docker' and 'sudo' in the group list
+docker ps          # must work WITHOUT sudo
+```
+
+**Both are genuinely required, not conveniences.** Without `docker` every container command
+fails with a permission error. Without `sudo` the mode scripts refuse to run at all — they need
+root to drop caches and start services — which means the box cannot be switched between serving
+and update mode, and nothing in this guide past Step 3 is possible.
+
+> **Note for whoever administers the box:** granting `sudo` is effectively granting full control
+> of the machine. That is a trust decision rather than a technical one, but there is no partial
+> version that still works — mode switching is root-only by design.
+
+### Disk
+
+Not a constraint. The model cache is about 4.3 GB and Docker images about 66 GB; a Spark ships
+with several terabytes. If two accounts each keep their own `hf-cache`, the duplication is
+irrelevant — do not complicate the setup to avoid it.
+
+---
+
 ## Step 1 — system packages
 
 ```bash
@@ -272,6 +321,9 @@ ask before you need them.
 
 | symptom | cause |
 |---|---|
+| `permission denied` on any docker command | the account is not in the `docker` group (Step 0) |
+| `must run as root` from a mode script | the account is not in the `sudo` group (Step 0) |
+| `name is already in use by container` | the container already exists — `docker start <name>`, do not re-run `docker run` |
 | ingestion fails rendering pages | `poppler-utils` not installed |
 | `Connection refused` on 8000 | you are in update mode, not serving mode |
 | `Connection refused` on 8080 | you are in serving mode, not update mode |
