@@ -63,16 +63,75 @@ python3 -m venv ingest-venv
 ./ingest-venv/bin/python -m pip install -r requirements-ingest.txt
 ```
 
-Then check the tools before using them — this is a project rule, not a formality:
+---
+
+## Step 2a — run every self-test and SEND THE RESULT before going further
+
+Every tool here carries named behavioural checks that must pass before it is used. On a fresh
+machine they are also a test of *the machine*: if something passes on our box and fails on
+yours, that difference is real information — about a library version, a driver, a locale — and
+we want it **now**, not after you have spent three hours building an index on top of it.
+
+Save this as `check.sh` in `~/p42` and run it:
 
 ```bash
-./ingest-venv/bin/python ingest_v3.py --self-test          # 45 assertions
-./ingest-venv/bin/python retrieval_recall.py --self-test   # 30
-./ingest-venv/bin/python span_specificity.py --self-test   # 26
+#!/bin/bash
+{
+echo "P42 self-test sweep"
+echo "host   : $(hostname)"
+echo "date   : $(date -Is)"
+echo "python : $(./ingest-venv/bin/python -V 2>&1)"
+echo "---"
+fail=0
+for t in ingest_v3 pipelines pipeline_ask_v2 retrieval_recall span_specificity \
+         anchor_migrate label_coverage benchmark claim_judge figure_probe \
+         sparse_build; do
+  [ -f "$t.py" ] || { printf '%-20s NOT IN BUNDLE\n' "$t"; continue; }
+  out=$(./ingest-venv/bin/python "$t.py" --self-test 2>&1)
+  sum=$(printf '%s' "$out" | grep -oE '[0-9]+ assertions, [0-9]+ failed' | tail -1)
+  nfail=$(printf '%s' "$out" | grep -cE 'FAIL[[:space:]]*$')
+  if [ -n "$sum" ]; then printf '%-20s %s\n' "$t" "$sum"
+  elif [ "$nfail" -eq 0 ]; then printf '%-20s ok (%s checks)\n' "$t" "$(printf '%s' "$out" | grep -c ' ok$')"
+  else printf '%-20s %s FAILING CHECKS\n' "$t" "$nfail"; fi
+  [ "$nfail" -gt 0 ] && fail=$((fail+1))
+done
+echo "---"
+echo "tools with failures: $fail"
+} > "selftest-$(hostname).txt" 2>&1
+cat "selftest-$(hostname).txt"
 ```
 
-**If any assertion fails, stop and report it.** A failing self-test on a fresh box is
-information about the box, and we want it.
+```bash
+chmod +x check.sh && ./check.sh
+```
+
+**Send `selftest-<hostname>.txt` to Geoffray before you continue.** These are the numbers it
+produces on our box on 18 August 2026:
+
+```
+ingest_v3            45 assertions, 0 failed
+pipelines            21 assertions, 0 failed
+pipeline_ask_v2      13 assertions, 0 failed
+retrieval_recall     30 assertions, 0 failed
+span_specificity     26 assertions, 0 failed
+anchor_migrate       18 assertions, 0 failed
+label_coverage       24 assertions, 0 failed
+benchmark            70 assertions, 0 failed
+claim_judge          32 assertions, 0 failed
+figure_probe         20 assertions, 0 failed
+sparse_build         ok (6 checks)
+---
+tools with failures: 0
+```
+
+**Any difference at all is worth reporting** — a different assertion count, a failure, or a
+tool that will not start. Do not work around it and do not "fix" it locally; a self-test that
+disagrees between two machines is telling you something about one of them, and finding out
+which is cheaper now than later.
+
+(Note the script matches `FAIL` only at the end of a line. Two assertions have the word
+"FAILS" in their *names* — counting those as failures is exactly the kind of check-the-word-
+not-the-condition mistake this project keeps a register of.)
 
 ---
 
