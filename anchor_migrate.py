@@ -63,6 +63,18 @@ def parse_anchor(anchor):
     return (bits[0] if bits else "", bits[1] if len(bits) > 1 else "")
 
 
+def anchor_span_records(item):
+    """The rich span records under `_anchor.spans`.
+
+    THESE ARE WHAT THE RETRIEVAL SCORER READS. `retrieval_recall.anchor_spans()`
+    builds its (doc, clause) set from here - NOT from the claims' evidence
+    anchors. Migrating one and not the other produced a frame that looked
+    migrated, scored as unmigrated, and cost a full set of post-rebuild recall
+    runs on 2026-08-18 before a single item was read.
+    """
+    return (item.get("_anchor") or {}).get("spans") or []
+
+
 def refs_of(item):
     """Every (claim_index, evidence_index, anchor, span) in one item."""
     out = []
@@ -135,6 +147,37 @@ def migrate_item(item, chunks, aliases=None):
                           "evidence": ei, "doc": doc, "old": old, "new": new,
                           "state": state, "n_chunks": n, "span": span[:70],
                           "doc_renamed_from": (anchor.split()[0]
+                                               if doc_renamed else None)})
+    # `_anchor.spans` - the field the retrieval scorer actually reads.
+    for si, sp in enumerate(anchor_span_records(out)):
+        doc = sp.get("doc_code") or ""
+        doc_renamed = aliases.get(doc)
+        if doc_renamed:
+            doc = doc_renamed
+        old_cl = sp.get("clause") or ""
+        labels, n = resolve(sp.get("text") or "", doc, chunks)
+        if len(labels) == 1:
+            new_cl = labels.pop()
+            if new_cl != old_cl or doc_renamed:
+                sp["clause_before_R85"] = old_cl
+                if doc_renamed:
+                    sp["doc_code_before_R21"] = sp.get("doc_code")
+                sp["clause"] = new_cl
+                sp["doc_code"] = doc
+                state = "RELABELLED"
+            else:
+                state = "unchanged"
+        else:
+            state = "AMBIGUOUS" if labels else "UNRESOLVED"
+        # R86 changed the point-id scheme; a carried-over id no longer resolves
+        if sp.get("point_id"):
+            sp["point_id_stale_since_R86"] = sp.pop("point_id")
+        decisions.append({"id": item.get("anchor_id"), "claim": None,
+                          "evidence": si, "doc": doc, "old": old_cl,
+                          "new": sp.get("clause"), "state": state,
+                          "n_chunks": n, "span": (sp.get("text") or "")[:70],
+                          "field": "_anchor.spans",
+                          "doc_renamed_from": (sp.get("doc_code_before_R21")
                                                if doc_renamed else None)})
     return out, decisions
 
@@ -342,6 +385,36 @@ def selftest():
        d5[0]["doc_renamed_from"] == "ECSS-M-70A(19April1996).pdf")
     ck("without the alias map the same anchor is UNRESOLVED, not guessed",
        migrate_item(it2, ch2)[1][0]["state"] == "UNRESOLVED")
+
+    # --- the defect that cost a full set of recall runs -------------------
+    ck("the module NAMES _anchor.spans as the field the scorer reads",
+       "THESE ARE WHAT THE RETRIEVAL SCORER READS" in src
+       and "scored as unmigrated" in src)
+
+    rich = {"anchor_id": "A-9",
+            "_anchor": {"spans": [{"doc_code": "D", "clause": "5.11.5.6",
+                                   "text": "some other table row",
+                                   "point_id": "old-id-123"}]},
+            "claims": [{"evidence": [{"anchor": "D 5.11.5.6",
+                                      "span": "some other table row"}]}]}
+    m6, d6 = migrate_item(rich, chunks)
+    sp = m6["_anchor"]["spans"][0]
+    ck("_anchor.spans is migrated, not just the claims' evidence anchors",
+       sp["clause"] == "Q.3.1" and sp["clause_before_R85"] == "5.11.5.6")
+    ck("a stale point_id is retired rather than carried over (R86)",
+       "point_id" not in sp and sp.get("point_id_stale_since_R86") == "old-id-123")
+
+    import retrieval_recall as _rr
+    ck("AFTER migration the scorer's view AGREES with the evidence anchors - "
+       "the cross-check that would have caught the 2026-08-18 defect",
+       _rr.anchor_spans(m6)
+       == {parse_anchor(e["anchor"])
+           for c in m6["claims"] for e in c["evidence"]})
+    ck("BEFORE migration those two views disagree, so the check can fail",
+       _rr.anchor_spans(rich if False else
+                        {"_anchor": {"spans": [{"doc_code": "D",
+                                                "clause": "5.11.5.6"}]}})
+       != {("D", "Q.3.1")})
 
     ck("the tally counts every ref exactly once",
        tally(d + d2 + d3 + d4)["total"] == 4)

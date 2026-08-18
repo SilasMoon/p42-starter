@@ -1,49 +1,66 @@
 # Project 42 — starter bundle
 
-Everything you need to run and measure the knowledge base pipeline on your own machine.
+The knowledge base pipeline, the tools that measure it, and the question sets, for running
+experiments on your own machine.
 
-**Read `docs/P42_Starter_Kit.md` first.** It assumes no background in AI, search systems or
-measurement. Then `docs/P42_External_Experiment_Protocol.md`, which tells you what to do in
-what order — starting with reproducing our baseline before changing anything.
+**Do not run anything yet.** Three documents, in this order — each one hands off to the next.
 
-## Setting up
+## 1. Understand what this is → `docs/P42_Starter_Kit.md`
 
-```bash
-python3 -m venv ingest-venv
-./ingest-venv/bin/python -m ensurepip
-./ingest-venv/bin/python -m pip install -r requirements-ingest.txt
-```
+Read this first, cover to cover. It assumes **no background** in AI, search systems or
+measurement: what the project is for, every term you will meet, how the pipeline works, where it
+is actually weak, and the rules we work by. About half an hour.
 
-The 145 ECSS source documents are **not** in this bundle — they are third-party standards.
-Download them from [ecss.nl](https://ecss.nl) into `corpus/pdf/`, then verify you have exactly
-the same corpus we do:
+Nothing else will make sense without it, and it is the only long thing you have to read.
 
-```bash
-awk -F'\t' 'NR>5{print $2"  corpus/pdf/"$1}' corpus/CORPUS_MANIFEST.tsv | sha256sum -c
-```
+## 2. Get it running → `docs/P42_Second_Box_Setup.md`
 
-Then build the index and check the tools before using them:
+Every command you need, in order, from a fresh machine to a working pipeline that answers a
+question. **All the setup instructions live there and only there** — this README deliberately
+does not repeat them, so there is one place to follow and nothing to reconcile.
 
-```bash
-./ingest-venv/bin/python ingest_v3.py --self-test
-./ingest-venv/bin/python ingest_v3.py --collection p42_text_v4 corpus/pdf/
-./ingest-venv/bin/python retrieval_recall.py --self-test
-```
+Be aware before you start: the pipeline is a small Python program plus **five Docker services**,
+and the machine runs in one of two modes because they do not all fit in memory at once. The
+guide explains both. It also lists what the administrator must already have done to the box, so
+check that first.
+
+Step 2a asks you to send back a self-test report **before** you build anything. Please do —
+it is a five-minute check that catches differences between your machine and ours while they are
+still cheap to find.
+
+## 3. Do the work → `docs/P42_External_Experiment_Protocol.md`
+
+What to run, in what order, and how to report it. **Task 0 is reproducing our baseline before
+changing anything**, which is what makes every later measurement mean something.
+
+---
 
 ## What is here
 
 | | |
 |---|---|
 | the pipeline | `ask_v2.py`, `retrieve.py`, `ingest_v3.py` |
-| measurement tools | `retrieval_recall.py`, `span_specificity.py`, `benchmark.py`, others |
+| measurement tools | `retrieval_recall.py`, `span_specificity.py`, `benchmark.py`, and others |
 | the question sets | `questions/`, `census/` — questions, their required claims, and the exact evidence locations |
-| documentation | `docs/` — start with the starter kit |
+| the mode scripts | `ops/` — switching the box between answering and loading |
+| documentation | `docs/` — read in the order above |
+
+The 145 ECSS source documents are **not** here: they are third-party standards, and a repository
+redistributes. `corpus/CORPUS_MANIFEST.tsv` lets you verify you have the identical corpus once
+you have downloaded them. The setup guide covers this at Step 5.
 
 ## What is not here, and why
 
-**Our system's answers, and our judge's verdicts on them.** That is deliberate. We may ask you
-to act as an *independent evaluator* — someone who has not seen our outputs and can therefore
-judge them fairly. That is genuinely valuable and it is something we cannot do for ourselves.
-It only works if you have not already read the material.
+**Our system's answers, and our judge's verdicts on them.** That is deliberate. We may ask you to
+act as an *independent evaluator* — someone who has not seen our outputs and can therefore judge
+them fairly. It is a gap we cannot close ourselves, and it only works if you have not already
+read the material.
 
-If an experiment seems to need them, ask first rather than working around it.
+Tasks 0 to 2 of the protocol need none of it. If an experiment seems to need it, **ask first**
+rather than working around it.
+
+## If you get stuck
+
+Every tool has a `--self-test`. Run it. Beyond that: the setup guide ends with a troubleshooting
+table covering the failures people actually hit, and the starter kit's last line applies
+throughout — **if something is unclear, that is a defect in the document, not in you.** Say so.

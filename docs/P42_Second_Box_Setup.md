@@ -1,7 +1,11 @@
 # Setting up a second box (spark2) to run the pipeline
 
-**Version 1.0 — 18 August 2026.** What to install on a fresh DGX Spark so the knowledge base
-pipeline runs. Read `P42_Starter_Kit.md` first for what any of this is.
+**Version 1.0 — 18 August 2026.** Every command needed to take a fresh DGX Spark to a working
+pipeline that answers a question.
+
+**This is document 2 of 3.** Read `P42_Starter_Kit.md` first — it explains what a chunk, an
+index, a reranker and a mode are, and this guide assumes all of that. When you finish here, go
+to `P42_External_Experiment_Protocol.md` and start at Task 0.
 
 The long-form runbook is `DGX_Spark_Setup_Runbook.md` (base OS, drivers, Docker, GPU checks).
 **This document is the short path**: the specific things the pipeline needs, and nothing else.
@@ -405,3 +409,17 @@ ask before you need them.
 | a self-test fails on a fresh box | **report it, do not work around it** |
 
 The last row is the important one.
+
+---
+
+## When you have finished this guide
+
+You should now have: a working environment, a self-test report sent back, the corpus verified
+against our manifest, an index built as `p42_text_v4` and its keyword half as
+`p42_text_v4_bgelex`, and a cited answer to a real question.
+
+**Next: `P42_External_Experiment_Protocol.md`, and start at Task 0.**
+
+Task 0 is not an experiment — it reproduces our published baseline on your machine and checks
+that you get the same numbers. It is short, it needs no model calls, and everything you measure
+afterwards depends on it. The protocol explains why, and gives you the figures to match.

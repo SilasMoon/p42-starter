@@ -394,7 +394,13 @@ machine.
 your own box and confirm you get the same figures. Only then does a swap mean anything —
 because then you are comparing your "after" to *your own* "before".
 
-The experiment protocol document covers exactly how.
+**What to read next, in order:**
+
+1. **`P42_Second_Box_Setup.md`** — how to get the pipeline running on your machine. Every command
+   from a fresh box to a working system that answers a question. **Do this before anything else;
+   nothing else works without it.**
+2. **`P42_External_Experiment_Protocol.md`** — then the work itself, starting with Task 0, which
+   is that baseline reproduction.
 
 ---
 
@@ -421,6 +427,7 @@ Start here. Do not read the whole `docs/` folder — there are 40+ files, many s
 
 | I want to know | read |
 |---|---|
+| **how to get it running on my machine** | **`P42_Second_Box_Setup.md`** |
 | how to run an experiment properly | `P42_External_Experiment_Protocol.md` |
 | what the pipeline does, in detail | `P42_Design_Pipeline_and_Benchmark.md` sections 6.2 and 8 |
 | what all the current results are | `P42_Campaign3_Results.md` |

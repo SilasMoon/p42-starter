@@ -1,8 +1,15 @@
 # Project 42 — Experiment Protocol for a Second Machine
 
 **Version 1.0 — 18 August 2026.** How to run an experiment here so the result means something.
-Read `P42_Starter_Kit.md` first — this document uses its vocabulary, and assumes you have met
-terms like *chunk*, *span*, *collection*, *recall* and *baseline* there.
+**This is document 3 of 3, and it assumes the first two are done.**
+
+1. `P42_Starter_Kit.md` — this document uses its vocabulary throughout (*chunk*, *span*,
+   *collection*, *recall*, *baseline*).
+2. `P42_Second_Box_Setup.md` — **you need a working pipeline before any of this runs**: the five
+   services, an index built, and a question answered end to end. Every command below assumes it.
+
+If you have not done both, stop and do them first. Nothing here will work, and the failures will
+look like problems with the experiment rather than with the setup.
 
 ---
 
@@ -36,7 +43,8 @@ know before you do anything else. Report it.
 
 ## Task 0 — reproduce the baseline (do this first)
 
-**No experiment. No swaps. Nothing changed.**
+**No experiment. No swaps. Nothing changed.** This assumes you have completed
+`P42_Second_Box_Setup.md` and can already answer a question with a citation.
 
 ```bash
 python3 retrieval_recall.py --self-test          # must pass before use
