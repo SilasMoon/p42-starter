@@ -86,6 +86,43 @@ the right *passage* only 86%, and that 86% does not improve with a bigger contex
 
 **Candidate:** `Qwen3-Embedding-4B` in place of `BGE-M3`.
 
+### Read this first — it changes what you should expect, and what you must report
+
+In August 2026 we characterised the passages retrieval never finds (starter kit, section 5). The
+misses split cleanly by the *role* of the evidence:
+
+```
+   primary evidence   missed  7% of the time
+   hop2 evidence      missed 46% of the time      <- 45% of all misses
+```
+
+A better embedding model can plausibly fix the **vocabulary** misses — where the question and the
+standard use different words for the same thing. One real example: a question asking about
+*"automated validation"* of on-board scripts, where the clause says *"a syntax analyzer,
+consistency, dependency and constraint checker shall be provided"*. Nothing shared but meaning.
+
+**It almost certainly cannot fix the `hop2` misses**, and those are nearly half the gap. That
+problem is structural: one query becomes one point in meaning space, and a question needing two
+passages in two different places cannot have both nearby. Changing *which* model draws the map
+does not change that there is only one pin in it.
+
+**So: report your results BY ROLE, not only as a total.**
+
+```
+   spans reached / total, split into: primary | hop1 | hop2
+```
+
+Two reasons this matters, and both have bitten us:
+
+- A real improvement on vocabulary misses is roughly a third of the spans. **Averaged in with an
+  unchanged `hop2` it can vanish into the total** and look like "no effect".
+- The reverse: an apparent overall gain that turns out to be entirely `primary` spans is worth
+  knowing about, not celebrating.
+
+**A null result on `hop2` is the expected outcome and is not a failure of your experiment.** Say
+so plainly in the report; it is a finding, and it would confirm our diagnosis on independent
+material.
+
 ### Read this before you start — it is not a config change
 
 BGE-M3 gives us **two** things from one model: the meaning-based vector *and* the keyword
@@ -121,6 +158,7 @@ Report, for each configuration:
 
 ```
 spans reached / spans total        (and the cheap-span count)
+spans reached BY ROLE              primary | hop1 | hop2   <- see the caveat above
 items with ALL their spans found / items total
 GAINS  - every span the new model found that the old one missed, listed individually
 LOSSES - every span the old model found that the new one missed, listed individually

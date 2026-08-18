@@ -307,6 +307,28 @@ they should shape what you pick up:
   well; it just cannot rescue a good passage that search never handed it. A better reranker
   re-sorts the same flawed 50 candidates.
 
+### And in August 2026 we found out *which* passages go missing
+
+Some of our questions need **two** pieces of evidence — "what does the standard require for X,
+and how must Y be characterised?". The evidence records mark them: the `primary` piece, and a
+second one marked `hop2`. Sorting the misses that way is stark:
+
+```
+   primary evidence   missed  7% of the time
+   hop2 evidence      missed 46% of the time
+```
+
+**The system finds the first thing a question asks for, and loses the second in nearly half of
+cases.** Thirteen of our twenty-nine total misses come from that one situation.
+
+The reason is worth understanding, because it explains a lot of failed experiments. Search turns
+your question into **one** point in "meaning space" and returns what sits near it. If the answer
+is in two different places, one point cannot be near both — and **no amount of re-sorting the
+results fixes that**, because the second passage was never in the list to re-sort.
+
+That is why changing `TOP_K`, the query wording and the keyword weights all produced results too
+small to measure. They all re-order a list that was missing the passage in the first place.
+
 ---
 
 ## 6. The most important lesson this project has learned
