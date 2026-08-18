@@ -32,6 +32,51 @@ modes**, and you switch between them:
 
 ---
 
+## What must already be done to the machine, before this guide starts
+
+This guide assumes the box has been prepared by whoever administers it, following
+`DGX_Spark_Setup_Runbook.md`. The split below is deliberate: everything in the first list is
+**system-level, one-off, or proves the hardware works**, and none of it should be discovered as
+a failure by the person trying to build an index.
+
+**Administrator does, before handover:**
+
+| runbook | why it cannot wait |
+|---|---|
+| §1.0 recovery dongle | physical, and it must be *tested*. If the box ever bricks this is the only way back |
+| §1.1 first boot & system check | physical setup |
+| §1.2 OS update, **driver pin**, firmware decision | see the warning below — this one is not optional |
+| §1.3 Docker + NVIDIA container toolkit | **Step 1 of this guide assumes it.** Without it every container command fails |
+| §1.5 smoke test — does the box serve a model? | proves driver, container stack and GPU work *end to end* before anyone else touches it |
+| §1.7 Step 1, one-time memory protections | system-level settings |
+
+> **The driver pin is a correctness matter, not housekeeping.** §1.2 Step 5 pins the driver at
+> **580.x** (`sudo apt-mark hold nvidia-driver-580-open`) because the 590 series has three
+> documented regressions on GB10 — a memory leak, a deadlock, and **data corruption**. Our
+> reference box runs **580.173.02**. If the two machines run different drivers, a difference in
+> results may be the driver rather than the change being tested — which defeats the purpose of
+> Task 0. Record the version and check it matches.
+
+**Left for the person using the box** — these are personal, and belong in their own account:
+
+- **§1.2.a workstation tools** (browser, terminal, markdown editor). Set these up yourself, with
+  your own logins.
+- **§1.7 the rest** — the memory habits and the early-warning signals. Read them; they are about
+  how not to wedge the machine.
+
+**Not needed for this work:**
+
+- **§1.4 uv and the Hugging Face CLI.** This guide uses plain `python3 -m venv`, and the models
+  are pulled by the vLLM containers, so the HF CLI is not required.
+- **§1.6 recording both machines' IPs.** Only relevant if two Sparks need to talk to each other.
+  They do not, for this.
+
+**Do not stop the preparation at §1.2.** The first command in Step 1 below is a
+GPU-in-container test, which is §1.3 — if that has not been done, this guide fails on its first
+instruction.
+
+---
+
 ## Step 0 — the account, and the two groups it must be in
 
 **Use a personal account.** Not for technical isolation — for the ordinary reason that the
