@@ -34,10 +34,15 @@ modes**, and you switch between them:
 
 ## Step 0 — the account, and the two groups it must be in
 
-**If spark2 is the intern's machine, use the account that already exists on it.** Everything in
+**Use a personal account.** Not for technical isolation — for the ordinary reason that the
+person using the box will sign in to their own GitHub, mail and browser, and those belong in
+their own home directory rather than in a shared login. The setup cost is nil: everything in
 this guide is written relative to the home directory (`~/p42`), so it works under any username
-with no changes. A second account buys file separation and nothing else, because the things
-that actually matter here are **machine-wide, not per-user**:
+with no changes.
+
+Be clear about what it does and does not give you. It separates **files and credentials**. It
+does not give a second working environment, because the things that matter most here are
+**machine-wide, not per-user**:
 
 - **Docker containers** are not namespaced by user. If two accounts each run
   `docker run --name qdrant`, the second fails on a name collision.
@@ -45,9 +50,12 @@ that actually matter here are **machine-wide, not per-user**:
   people cannot serve and ingest simultaneously.
 - **Ports** 6333 / 8000 / 8002 / 8080 / 8081 are one set per machine.
 
-So a second account does not give a second working environment. If you both need to use the
-box, the sharing has to be by agreement — one person holds it in one mode at a time — and a
-separate login does not change that.
+So if two people use the box, the sharing has to be by agreement — one person holds it in one
+mode at a time — and a separate login does not change that. The containers, and therefore the
+index, are shared no matter who is logged in.
+
+Note also that anyone with `sudo` can read any other account's files, so the separation is
+about tidiness and avoiding accidents, not about enforcement.
 
 ### Whichever account is used, it needs two group memberships
 
@@ -186,7 +194,28 @@ not-the-condition mistake this project keeps a register of.)
 
 ## Step 3 — the five services
 
-Start them once; afterwards the mode scripts start and stop them for you.
+**Check whether they already exist before creating anything:**
+
+```bash
+docker ps -a --format '{{.Names}}\t{{.Status}}'
+```
+
+Docker containers belong to the **machine, not to your account**. If someone has already set
+this box up under a different login, the containers are already there and any user in the
+`docker` group can use them. In that case **skip the `docker run` commands below entirely** and
+just start what you need:
+
+```bash
+docker start qdrant vllm-embed vllm-vl        # update mode
+docker start qdrant vllm-llm reranker         # serving mode
+```
+
+Re-running `docker run` against an existing name fails with *"name is already in use"*. That is
+the container telling you it already exists, not an error to work around — never delete and
+recreate one to get past it, because the `qdrant` container holds the index.
+
+If `docker ps -a` comes back empty, create them once. Afterwards the mode scripts start and
+stop them for you.
 
 ```bash
 # the vector database — stays up in both modes
