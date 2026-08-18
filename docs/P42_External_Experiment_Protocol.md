@@ -144,7 +144,9 @@ Our system cannot see pictures, so it guesses from the surrounding text, and we 
 guessing **backwards**.
 
 **Size of the prize, measured:** across all 145 documents there are 2,431 mentions of figures,
-but only **48** where the text hands the content to the figure like that. Most ECSS figures
+but only **48** where the text hands the content to the figure like that — and those 48
+references point at **38 distinct figures** across 16 documents, of which **29** sit beside a
+`shall`. Thirty-eight is the number of questions that could be authored. Most ECSS figures
 just illustrate something the text already states. So this is a real gap but a bounded one —
 please do not report it as "the system is blind to 2,431 things".
 

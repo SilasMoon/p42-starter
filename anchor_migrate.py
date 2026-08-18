@@ -72,6 +72,27 @@ def refs_of(item):
     return out
 
 
+def doc_aliases(old_index_docs, new_pairs):
+    """{old doc_code: new doc_code} for documents whose CODE changed.
+
+    R21 fixed the pre-2008 ECSS filename pattern, so two documents stopped
+    having their whole filename as a doc_code:
+
+        ECSS-M-70A(19April1996).pdf        -> ECSS-M-70
+        ECSS-P-00C-Rev.1(15November2024).pdf -> ECSS-P-00
+
+    Anchors drawn before the rebuild still carry the old form, and a span
+    lookup keyed on it finds no document at all. The join is on `source_file`,
+    which is the one identifier the rebuild did NOT change.
+    """
+    out = {}
+    for src, new in new_pairs.items():
+        old = old_index_docs.get(src)
+        if old and old != new:
+            out[old] = new
+    return out
+
+
 def resolve(span, doc, chunks):
     """Labels of the chunks in `doc` whose text contains `span`.
 
@@ -86,12 +107,16 @@ def resolve(span, doc, chunks):
     return (set(hits), len(hits))
 
 
-def migrate_item(item, chunks):
+def migrate_item(item, chunks, aliases=None):
     """(migrated_item, [decisions]). Pure - the index is passed in."""
+    aliases = aliases or {}
     out = json.loads(json.dumps(item))
     decisions = []
     for ci, ei, anchor, span in refs_of(item):
         doc, old = parse_anchor(anchor)
+        doc_renamed = aliases.get(doc)
+        if doc_renamed:
+            doc = doc_renamed
         labels, n = resolve(span, doc, chunks)
         if not labels:
             state, new = "UNRESOLVED", old
@@ -100,33 +125,45 @@ def migrate_item(item, chunks):
         else:
             new = labels.pop()
             state = "unchanged" if new == old else "RELABELLED"
+        if doc_renamed and state == "unchanged":
+            state = "RELABELLED"          # the document code moved (R21)
         if state == "RELABELLED":
             ev = out["claims"][ci]["evidence"][ei]
             ev["anchor"] = ("%s %s" % (doc, new)).strip()
             ev["anchor_before_R85"] = anchor
         decisions.append({"id": item.get("anchor_id"), "claim": ci,
                           "evidence": ei, "doc": doc, "old": old, "new": new,
-                          "state": state, "n_chunks": n, "span": span[:70]})
+                          "state": state, "n_chunks": n, "span": span[:70],
+                          "doc_renamed_from": (anchor.split()[0]
+                                               if doc_renamed else None)})
     return out, decisions
 
 
-def index_chunks(collection):
-    """{doc: [(clause, normalised_body)]}. The only impure function here."""
+def index_chunks(collection, with_sources=False):
+    """{doc: [(clause, normalised_body)]}. The only impure function here.
+
+    With `with_sources`, also returns {source_file: doc_code} - the join that
+    survives a rebuild, and therefore the only safe way to notice that a
+    document's CODE changed (R21).
+    """
     from collections import defaultdict
     from qdrant_client import QdrantClient
     c = QdrantClient(url="http://localhost:6333", timeout=300)
-    off, out = None, defaultdict(list)
+    off, out, srcs = None, defaultdict(list), {}
     while True:
         pts, off = c.scroll(collection, limit=4000, offset=off,
-                            with_payload=["doc_code", "clause", "text"],
+                            with_payload=["doc_code", "clause", "text",
+                                          "source_file"],
                             with_vectors=False)
         for p in pts:
-            out[p.payload.get("doc_code") or ""].append(
-                (p.payload.get("clause") or "",
-                 norm_text(p.payload.get("text"))))
+            d = p.payload.get("doc_code") or ""
+            out[d].append((p.payload.get("clause") or "",
+                           norm_text(p.payload.get("text"))))
+            if p.payload.get("source_file"):
+                srcs[p.payload["source_file"]] = d
         if off is None:
             break
-    return out
+    return (out, srcs) if with_sources else out
 
 
 def tally(decisions):
@@ -156,12 +193,16 @@ def report(decisions, header):
     return t
 
 
-def run_validate(frame, collection):
+def run_validate(frame, collection, old_collection=None):
     items = [json.loads(l) for l in open(frame) if l.strip()]
-    chunks = index_chunks(collection)
+    chunks, srcs = index_chunks(collection, with_sources=True)
+    aliases = {}
+    if old_collection:
+        _o, osrc = index_chunks(old_collection, with_sources=True)
+        aliases = doc_aliases(osrc, srcs)
     decisions = []
     for it in items:
-        _m, d = migrate_item(it, chunks)
+        _m, d = migrate_item(it, chunks, aliases)
         decisions += d
     t = report(decisions, "R88 VALIDATION - %s against %s"
                % (os.path.basename(frame), collection))
@@ -181,12 +222,20 @@ def run_validate(frame, collection):
     return 0
 
 
-def run_migrate(frame, collection, out):
+def run_migrate(frame, collection, out, old_collection=None):
     items = [json.loads(l) for l in open(frame) if l.strip()]
-    chunks = index_chunks(collection)
+    chunks, srcs = index_chunks(collection, with_sources=True)
+    aliases = {}
+    if old_collection:
+        _o, osrc = index_chunks(old_collection, with_sources=True)
+        aliases = doc_aliases(osrc, srcs)
+        if aliases:
+            print("\n  DOCUMENT CODES THAT CHANGED (R21), applied to anchors:")
+            for a, b in sorted(aliases.items()):
+                print("    %-44s -> %s" % (a[:44], b))
     migrated, decisions = [], []
     for it in items:
-        m, d = migrate_item(it, chunks)
+        m, d = migrate_item(it, chunks, aliases)
         migrated.append(m)
         decisions += d
     t = report(decisions, "R88 MIGRATION - %s -> %s"
@@ -267,6 +316,33 @@ def selftest():
        d4[0]["state"] == "AMBIGUOUS"
        and m4["claims"][0]["evidence"][0]["anchor"] == "D A")
 
+    # --- R21: a document whose CODE changed between builds ---------------
+    old_src = {"/c/ECSS-M-70A(19April1996).pdf": "ECSS-M-70A(19April1996).pdf",
+               "/c/ECSS-E-ST-40.pdf": "ECSS-E-ST-40"}
+    new_src = {"/c/ECSS-M-70A(19April1996).pdf": "ECSS-M-70",
+               "/c/ECSS-E-ST-40.pdf": "ECSS-E-ST-40"}
+    al = doc_aliases(old_src, new_src)
+    ck("a document whose code changed is detected by joining on source_file",
+       al == {"ECSS-M-70A(19April1996).pdf": "ECSS-M-70"})
+    ck("a document whose code did NOT change produces no alias",
+       "ECSS-E-ST-40" not in al)
+    ck("the join is on source_file because that is what a rebuild does not "
+       "change",
+       "which is the one identifier the rebuild did NOT change" in src)
+
+    ch2 = {"ECSS-M-70": [("5.1", norm_text("AIM: achieve a balance"))]}
+    it2 = {"anchor_id": "A-1", "claims": [{"evidence": [
+        {"anchor": "ECSS-M-70A(19April1996).pdf 5.1",
+         "span": "AIM: achieve a balance"}]}]}
+    m5, d5 = migrate_item(it2, ch2, al)
+    ck("an anchor on a RENAMED document resolves instead of going unresolved",
+       d5[0]["state"] == "RELABELLED"
+       and m5["claims"][0]["evidence"][0]["anchor"] == "ECSS-M-70 5.1")
+    ck("the rename is recorded on the decision, not silently applied",
+       d5[0]["doc_renamed_from"] == "ECSS-M-70A(19April1996).pdf")
+    ck("without the alias map the same anchor is UNRESOLVED, not guessed",
+       migrate_item(it2, ch2)[1][0]["state"] == "UNRESOLVED")
+
     ck("the tally counts every ref exactly once",
        tally(d + d2 + d3 + d4)["total"] == 4)
     ck("migrate_item is PURE - the index is passed in, so the self-test "
@@ -295,6 +371,9 @@ if __name__ == "__main__":
     ap.add_argument("--migrate", action="store_true")
     ap.add_argument("--frame")
     ap.add_argument("--collection", default="p42_text_v3_bgelex")
+    ap.add_argument("--old-collection",
+                    help="the collection the anchors were drawn against; "
+                         "enables doc-code alias detection (R21)")
     ap.add_argument("--out")
     a = ap.parse_args()
     if a.self_test:
@@ -302,9 +381,10 @@ if __name__ == "__main__":
     if a.validate:
         if not a.frame:
             raise SystemExit("--validate needs --frame")
-        sys.exit(run_validate(a.frame, a.collection))
+        sys.exit(run_validate(a.frame, a.collection, a.old_collection))
     if a.migrate:
         if not (a.frame and a.out):
             raise SystemExit("--migrate needs --frame and --out")
-        sys.exit(run_migrate(a.frame, a.collection, a.out))
+        sys.exit(run_migrate(a.frame, a.collection, a.out,
+                             a.old_collection))
     ap.print_help()

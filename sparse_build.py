@@ -56,7 +56,19 @@ def main():
             r = done / max(1e-9, time.time() - t0)
             print("  %d/%d  %.0f pts/s  eta %.0f min" % (done, n, r, (n - done) / r / 60))
         if off is None: break
-    qc.upsert(TGT, points=[], wait=True)
+    # Flush: wait for the last async batch to land. Qdrant REJECTS an empty
+    # upsert with 400 "Empty update request", so this cannot be an empty
+    # points list - it crashed the v4 build after all 35,166 points had
+    # copied, taking the provenance write (R87) down with it.
+    import time as _t
+    for _ in range(60):
+        if qc.get_collection(TGT).points_count >= done:
+            break
+        _t.sleep(2)
+    n_final = qc.get_collection(TGT).points_count
+    if n_final < done:
+        print("ABORT - only %d of %d points landed" % (n_final, done))
+        return 1
     print("DONE: copied %d, empty-sparse skipped %d, %.1f min"
           % (done, empty, (time.time() - t0) / 60))
     print("target count:", qc.get_collection(TGT).points_count)
